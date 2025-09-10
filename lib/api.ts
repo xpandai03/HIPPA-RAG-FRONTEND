@@ -16,7 +16,7 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   
-  const defaultHeaders: Record<string, string> = {
+  const headers: HeadersInit = {
     'x-api-key': API_KEY!,
     'Content-Type': 'application/json',
     ...options.headers,
@@ -25,7 +25,7 @@ async function apiRequest<T>(
   try {
     const response = await fetch(url, {
       ...options,
-      headers: defaultHeaders,
+      headers,
     });
 
     if (!response.ok) {
