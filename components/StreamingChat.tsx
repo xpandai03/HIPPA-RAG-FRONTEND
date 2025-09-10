@@ -11,6 +11,7 @@ export default function StreamingChat() {
   const [streamingContent, setStreamingContent] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const streamingContentRef = useRef('');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,6 +34,7 @@ export default function StreamingChat() {
     setCurrentInput('');
     setIsStreaming(true);
     setStreamingContent('');
+    streamingContentRef.current = '';
 
     // Create abort controller for this request
     abortControllerRef.current = new AbortController();
@@ -42,7 +44,9 @@ export default function StreamingChat() {
         { message: currentInput },
         {
           onChunk: (chunk: ChatStreamChunk) => {
-            setStreamingContent(prev => prev + chunk.content);
+            const newContent = streamingContentRef.current + chunk.content;
+            streamingContentRef.current = newContent;
+            setStreamingContent(newContent);
           },
           onError: (error: Error) => {
             console.error('Streaming error:', error);
@@ -50,13 +54,15 @@ export default function StreamingChat() {
             setIsStreaming(false);
           },
           onComplete: () => {
-            // Move streaming content to final messages
+            // Move streaming content to final messages using ref to avoid stale closure
+            const finalContent = streamingContentRef.current;
             setMessages(prev => [...prev, {
               role: 'assistant',
-              content: streamingContent,
+              content: finalContent,
               timestamp: new Date(),
             }]);
             setStreamingContent('');
+            streamingContentRef.current = '';
             setIsStreaming(false);
           },
           signal: abortControllerRef.current.signal,
@@ -74,6 +80,7 @@ export default function StreamingChat() {
       abortControllerRef.current.abort();
       setIsStreaming(false);
       setStreamingContent('');
+      streamingContentRef.current = '';
     }
   };
 
