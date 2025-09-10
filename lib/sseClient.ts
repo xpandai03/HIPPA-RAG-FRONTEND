@@ -29,7 +29,7 @@ export async function createChatStream(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY!,
+        'x-api-key': API_KEY as string,
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
       },

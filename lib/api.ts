@@ -17,9 +17,9 @@ async function apiRequest<T>(
   const url = `${API_BASE}${endpoint}`;
   
   const headers: HeadersInit = {
-    'x-api-key': API_KEY!,
+    'x-api-key': API_KEY as string,
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   try {
@@ -77,7 +77,7 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
   const response = await fetch(`${API_BASE}/v1/uploads`, {
     method: 'POST',
     headers: {
-      'x-api-key': API_KEY!,
+      'x-api-key': API_KEY as string,
     },
     body: formData,
   });
