@@ -68,17 +68,14 @@ class ApiError extends Error {
 }
 
 /**
- * Upload file to API with progress tracking
+ * Upload file via server-side proxy to keep API key secure
  */
 export async function uploadFile(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/v1/uploads`, {
+  const response = await fetch('/api/upload', {
     method: 'POST',
-    headers: {
-      'x-api-key': API_KEY as string,
-    },
     body: formData,
   });
 

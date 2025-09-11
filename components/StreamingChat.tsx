@@ -2,13 +2,19 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createChatStream } from '@/lib/sseClient';
-import { ChatMessage, ChatStreamChunk } from '@/lib/types';
+import { ChatMessage, ChatStreamChunk, CitationItem } from '@/lib/types';
 
-export default function StreamingChat() {
+interface StreamingChatProps {
+  selectedDocumentId?: string;
+}
+
+export default function StreamingChat({ selectedDocumentId }: StreamingChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentInput, setCurrentInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [currentCitations, setCurrentCitations] = useState<CitationItem[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingContentRef = useRef('');
@@ -34,6 +40,7 @@ export default function StreamingChat() {
     setCurrentInput('');
     setIsStreaming(true);
     setStreamingContent('');
+    setCurrentCitations([]);
     streamingContentRef.current = '';
 
     // Create abort controller for this request
@@ -41,12 +48,61 @@ export default function StreamingChat() {
 
     try {
       await createChatStream(
-        { message: currentInput },
+        { 
+          message: currentInput,
+          conversation_id: conversationId || undefined,
+          k: 6
+        },
         {
           onChunk: (chunk: ChatStreamChunk) => {
-            const newContent = streamingContentRef.current + chunk.content;
-            streamingContentRef.current = newContent;
-            setStreamingContent(newContent);
+            switch (chunk.type) {
+              case 'conversation':
+                if (chunk.conversation_id) {
+                  setConversationId(chunk.conversation_id);
+                  if (chunk.is_new) {
+                    console.log('Started new conversation:', chunk.conversation_id);
+                  }
+                }
+                break;
+                
+              case 'content':
+                if (chunk.content !== undefined && chunk.content !== null) {
+                  const newContent = streamingContentRef.current + chunk.content;
+                  streamingContentRef.current = newContent;
+                  setStreamingContent(newContent);
+                } else {
+                  console.warn('Received content chunk with undefined/null content:', chunk);
+                }
+                break;
+                
+              case 'citations':
+                if (chunk.citations) {
+                  setCurrentCitations(chunk.citations);
+                }
+                break;
+                
+              case 'done':
+                // Move streaming content to final messages
+                const finalContent = streamingContentRef.current;
+                console.log('Final content for message:', finalContent, 'length:', finalContent.length);
+                setMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: finalContent || '[Empty response]',
+                  timestamp: new Date(),
+                  citations: currentCitations.length > 0 ? currentCitations : undefined,
+                }]);
+                setStreamingContent('');
+                setCurrentCitations([]);
+                streamingContentRef.current = '';
+                setIsStreaming(false);
+                break;
+                
+              case 'error':
+                console.error('Streaming error:', chunk.error);
+                setStreamingContent('❌ Error: ' + (chunk.message || 'Failed to get response from server'));
+                setIsStreaming(false);
+                break;
+            }
           },
           onError: (error: Error) => {
             console.error('Streaming error:', error);
@@ -54,16 +110,22 @@ export default function StreamingChat() {
             setIsStreaming(false);
           },
           onComplete: () => {
-            // Move streaming content to final messages using ref to avoid stale closure
-            const finalContent = streamingContentRef.current;
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: finalContent,
-              timestamp: new Date(),
-            }]);
-            setStreamingContent('');
-            streamingContentRef.current = '';
-            setIsStreaming(false);
+            // Fallback completion handler
+            if (isStreaming) {
+              const finalContent = streamingContentRef.current;
+              if (finalContent) {
+                setMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: finalContent,
+                  timestamp: new Date(),
+                  citations: currentCitations.length > 0 ? currentCitations : undefined,
+                }]);
+              }
+              setStreamingContent('');
+              setCurrentCitations([]);
+              streamingContentRef.current = '';
+              setIsStreaming(false);
+            }
           },
           signal: abortControllerRef.current.signal,
         }
@@ -72,6 +134,7 @@ export default function StreamingChat() {
       console.error('Failed to create stream:', error);
       setIsStreaming(false);
       setStreamingContent('');
+      setCurrentCitations([]);
     }
   };
 
@@ -93,6 +156,18 @@ export default function StreamingChat() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Conversation Status */}
+      {conversationId && (
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+          <div className="text-xs text-blue-600">
+            💬 Conversation ID: {conversationId.slice(0, 8)}...
+            {messages.length > 0 && (
+              <span className="ml-2">• {messages.length} message{messages.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+        </div>
+      )}
+      
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
@@ -115,8 +190,31 @@ export default function StreamingChat() {
               }`}
             >
               <div className="whitespace-pre-wrap">{message.content}</div>
-              <div className="text-xs opacity-70 mt-1">
-                {message.timestamp.toLocaleTimeString()}
+              
+              {/* Citations for assistant messages */}
+              {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-gray-200">
+                  <div className="text-xs font-medium text-gray-600 mb-1">Sources:</div>
+                  <div className="space-y-1">
+                    {message.citations.map((citation, citIndex) => (
+                      <div key={citIndex} className="text-xs text-gray-500 flex items-center">
+                        <span className="inline-block w-4 h-4 bg-blue-100 text-blue-600 rounded-full text-center leading-4 mr-2 font-medium">
+                          {citation.index}
+                        </span>
+                        <span className="flex-1">
+                          {citation.document_name} • Chunk #{citation.chunk_index} • Score: {citation.score.toFixed(3)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="text-xs opacity-70 mt-1 flex items-center justify-between">
+                <span>{message.timestamp.toLocaleTimeString()}</span>
+                {message.processing_time_ms && (
+                  <span>({message.processing_time_ms}ms)</span>
+                )}
               </div>
             </div>
           </div>

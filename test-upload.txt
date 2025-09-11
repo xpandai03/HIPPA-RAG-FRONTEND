@@ -1,0 +1,11 @@
+This is a test file for the HIPAA RAG upload functionality.
+
+The upload should now work through the server-side proxy route handler at /api/upload.
+
+This test verifies that:
+1. File uploads are handled securely server-side
+2. API keys are not exposed to the client
+3. The proxy correctly forwards requests to the Render API
+4. HIPAA compliance is maintained throughout the process
+
+Test timestamp: 2025-09-10

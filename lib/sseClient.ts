@@ -25,11 +25,10 @@ export async function createChatStream(
   const { onChunk, onError, onComplete, signal } = options;
 
   try {
-    const response = await fetch(`${API_BASE}/v1/chat/stream`, {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY as string,
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
       },
@@ -71,9 +70,10 @@ export async function createChatStream(
 
             try {
               const parsed: ChatStreamChunk = JSON.parse(data);
+              console.log('SSE chunk received:', parsed);
               onChunk(parsed);
             } catch (parseError) {
-              console.warn('Failed to parse SSE data:', data);
+              console.warn('Failed to parse SSE data:', data, parseError);
             }
           }
         }

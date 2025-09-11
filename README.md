@@ -122,6 +122,87 @@ npm run lint
 npm run build
 ```
 
+## Debugging & Diagnostics
+
+### Debug Dashboard
+Visit `/debug` on your deployed site to run system checks:
+- Environment variable validation
+- Backend API connectivity
+- Proxy health status
+- Real-time error diagnostics
+
+### Debug API Endpoints
+
+Test these endpoints directly to diagnose issues:
+
+**Local Development:**
+```bash
+# Check environment variables
+curl -s http://localhost:3000/api/debug/env | jq .
+
+# Test basic connectivity  
+curl -s http://localhost:3000/api/debug/ping | jq .
+
+# Check backend API health
+curl -s http://localhost:3000/api/debug/proxy-health | jq .
+```
+
+**Production:**
+```bash
+# Replace with your Vercel URL
+curl -s https://your-app.vercel.app/api/debug/env | jq .
+curl -s https://your-app.vercel.app/api/debug/proxy-health | jq .
+```
+
+### Environment Setup for Production
+
+**Required Vercel Environment Variables:**
+
+1. **NEXT_PUBLIC_API_BASE** (Public)
+   - Your Render API URL: `https://your-app.onrender.com`
+   - Safe to expose to client-side
+
+2. **RENDER_API_KEY** (Server-only)
+   - Your API key from Render dashboard
+   - NEVER expose to client - stays on server
+
+**Setting in Vercel:**
+1. Go to Vercel Dashboard → Project → Settings → Environment Variables
+2. Add both variables for Production AND Preview environments
+3. Redeploy after adding variables
+
+### Troubleshooting Guide
+
+| Error | Debug Check Result | Solution |
+|-------|-------------------|----------|
+| `hasRenderApiKey: false` | Missing server config | Set RENDER_API_KEY in Vercel, redeploy |
+| `upstreamStatus: 401` | API key invalid | Check RENDER_API_KEY value and permissions |
+| `upstreamStatus: 403` | API access forbidden | Verify API key permissions, check CORS |
+| `upstreamStatus: 404` | Endpoint not found | Verify NEXT_PUBLIC_API_BASE URL is correct |
+| `upstreamStatus: 500` | Backend error | Check Render service logs and status |
+| Network/timeout errors | Connectivity issues | Check API base URL and network connectivity |
+
+### Debug Response Examples
+
+**Healthy System:**
+```json
+{
+  "hasRenderApiKey": true,
+  "apiBase": "https://hipaa-rag-api.onrender.com",
+  "vercelEnv": "production",
+  "runtime": "nodejs"
+}
+```
+
+**Backend Health:**
+```json
+{
+  "upstreamStatus": 200,
+  "upstreamOk": true,
+  "bodySnippet": "{\"ok\":true,\"service\":\"HIPAA RAG API\"}"
+}
+```
+
 ## Production Checklist
 
 - [ ] Environment variables set in Vercel
